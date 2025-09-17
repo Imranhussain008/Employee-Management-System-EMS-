@@ -66,11 +66,12 @@
     </dependencies>
 
     <distributionManagement>
-  <repository>
-    <id>nexus</id>
-    <url>http://16.171.195.173:8081/repository/maven-releases/</url>
-  </repository>
+    <snapshotRepository>
+        <id>nexus-snapshots</id>
+        <url>http://16.171.195.173:8081/repository/maven-snapshots/</url>
+    </snapshotRepository>
 </distributionManagement>
+
 
 
     <build>
