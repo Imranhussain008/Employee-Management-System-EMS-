@@ -25,7 +25,7 @@ pipeline {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
                     withSonarQubeEnv('SonarQube') {
-                    sh './mvnw sonar:sonar -e -x '
+                    sh 'mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN'
                 }
                                 }
             }
