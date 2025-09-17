@@ -1,12 +1,12 @@
 pipeline {
     agent any
+
     tools {
-    maven 'Maven'
-}
+        maven 'Maven'
+    }
 
     environment {
         SONAR_TOKEN = credentials('sonar-token-01')
-        DOCKER_USER = 'imran08'
     }
 
     stages {
@@ -24,21 +24,23 @@ pipeline {
 
         stage('SonarQube Scan') {
             steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withSonarQubeEnv('SonarQube') {
-                    sh 'mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN'
+                        sh """
+                        mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN
+                        """
+                    }
                 }
-                                }
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                     sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker build -t $DOCKER_USER/employee-management-system:latest .
-                        docker push $DOCKER_USER/employee-management-system:latest
+                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                        docker build -t $DOCKER_USERNAME/employee-management-system:latest .
+                        docker push $DOCKER_USERNAME/employee-management-system:latest
                     '''
                 }
             }
@@ -46,12 +48,14 @@ pipeline {
 
         stage('Trivy Scan') {
             steps {
-                sh '''
-trivy image employee-management-system:latest \
-  --format json \
-  --output trivy-report.json || true
-'''
-
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+                        trivy image $DOCKER_USERNAME/employee-management-system:latest \
+                          --format json \
+                          --output trivy-report.json || true
+                    '''
+                }
                 archiveArtifacts artifacts: 'trivy-report.json', fingerprint: true
             }
         }
@@ -59,7 +63,7 @@ trivy image employee-management-system:latest \
         stage('Publish to Nexus') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'nexus-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
-                    sh './mvnw deploy -Dnexus.username=$NEXUS_USER -Dnexus.password=$NEXUS_PASS'
+                    sh 'mvn deploy -Dnexus.username=$NEXUS_USER -Dnexus.password=$NEXUS_PASS'
                 }
             }
         }
@@ -67,8 +71,8 @@ trivy image employee-management-system:latest \
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                    kubectl apply -f k8s/deployment.yaml
-                    kubectl apply -f k8s/service.yaml
+                    kubectl apply -f deployment.yaml
+                    kubectl apply -f service.yaml
                 '''
             }
         }
@@ -79,7 +83,10 @@ trivy image employee-management-system:latest \
             cleanWs()
         }
         failure {
-            echo 'Pipeline failed. Check logs for details.'
+            echo '❌ Pipeline failed. Check logs for details.'
+        }
+        success {
+            echo '✅ Pipeline completed successfully!'
         }
     }
 }
