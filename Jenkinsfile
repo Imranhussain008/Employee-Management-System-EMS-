@@ -6,6 +6,7 @@ pipeline {
 
     environment {
         SONAR_TOKEN = credentials('sonar-token-01')
+        DOCKER_USER = 'imran08'
     }
 
     stages {
@@ -46,10 +47,11 @@ pipeline {
         stage('Trivy Scan') {
             steps {
                 sh '''
-                    trivy image $DOCKER_USER/employee-management-system:latest \
-                    --format json \
-                    --output trivy-report.json || true
-                '''
+trivy image employee-management-system:latest \
+  --format json \
+  --output trivy-report.json || true
+'''
+
                 archiveArtifacts artifacts: 'trivy-report.json', fingerprint: true
             }
         }
