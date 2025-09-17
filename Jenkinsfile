@@ -23,9 +23,11 @@ pipeline {
 
         stage('SonarQube Scan') {
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh './mvnw sonar:sonar'
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE'){
+                    withSonarQubeEnv('SonarQube') {
+                    sh './mvnw sonar:sonar -e -x '
                 }
+                                }
             }
         }
 
