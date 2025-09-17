@@ -3,11 +3,15 @@ pipeline {
 
     environment {
         SONAR_TOKEN = credentials('sonar-token')
-        DOCKERHUB_CREDS = credentials('dockerhub-creds')
-        NEXUS_CREDS = credentials('nexus-creds')
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Build') {
             steps {
                 sh './mvnw clean package -DskipTests'
@@ -22,16 +26,22 @@ pipeline {
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             steps {
-                sh 'docker build -t employee-management-system:latest .'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker build -t $DOCKER_USER/employee-management-system:latest .
+                        docker push $DOCKER_USER/employee-management-system:latest
+                    '''
+                }
             }
         }
 
         stage('Trivy Scan') {
             steps {
                 sh '''
-                    trivy image employee-management-system:latest \
+                    trivy image $DOCKER_USER/employee-management-system:latest \
                     --format json \
                     --output trivy-report.json || true
                 '''
@@ -41,7 +51,9 @@ pipeline {
 
         stage('Publish to Nexus') {
             steps {
-                sh './mvnw deploy'
+                withCredentials([usernamePassword(credentialsId: 'nexus-creds', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
+                    sh './mvnw deploy -Dnexus.username=$NEXUS_USER -Dnexus.password=$NEXUS_PASS'
+                }
             }
         }
 
@@ -52,6 +64,15 @@ pipeline {
                     kubectl apply -f k8s/service.yaml
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        failure {
+            echo 'Pipeline failed. Check logs for details.'
         }
     }
 }
