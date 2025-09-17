@@ -2,8 +2,7 @@
   <servers>
     <server>
       <id>nexus</id>
-      <username>your-nexus-username</username>
-      <password>your-nexus-password</password>
-    </server>
+      <username>${env.NEXUS_USER}</username>
+      <password>${env.NEXUS_PASS}</password>
   </servers>
 </settings>
